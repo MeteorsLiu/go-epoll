@@ -13,10 +13,10 @@ type Conn struct {
 	onWritable     func(c *Conn)
 }
 
-func NewConn(c net.Conn, fd int, onread func(c *Conn), onwrite func(c *Conn), ondisconnect func(c *Conn)) *Conn {
+func NewConn(c net.Conn, onread func(c *Conn), onwrite func(c *Conn), ondisconnect func(c *Conn)) *Conn {
 	return &Conn{
 		conn:           c,
-		fd:             fd,
+		fd:             fd(c),
 		onReadable:     onread,
 		onWritable:     onwrite,
 		onDisconnected: ondisconnect,

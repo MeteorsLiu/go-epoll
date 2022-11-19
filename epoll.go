@@ -99,8 +99,8 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 		cfd = cc.Fd()
 		cn = cc
 	} else {
-		cfd = fd(c)
-		cn = NewConn(c, cfd, nil, nil, nil)
+		cn = NewConn(c, nil, nil, nil)
+		cfd = cc.Fd()
 	}
 	if cfd == 0 {
 		return nil, ErrConn
