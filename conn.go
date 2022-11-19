@@ -8,35 +8,45 @@ import (
 type Conn struct {
 	conn           net.Conn
 	fd             int
-	OnReadable     func()
-	OnDisconnected func()
-	OnWritable     func()
-	ErrQueue       chan error
+	onReadable     func(c *Conn)
+	onDisconnected func(c *Conn)
+	onWritable     func(c *Conn)
 }
 
-func NewConn(c net.Conn, fd int, onread func(), onwrite func(), ondisconnect func()) *Conn {
+func NewConn(c net.Conn, fd int, onread func(c *Conn), onwrite func(c *Conn), ondisconnect func(c *Conn)) *Conn {
 	return &Conn{
 		conn:           c,
 		fd:             fd,
-		OnReadable:     onread,
-		OnWritable:     onwrite,
-		OnDisconnected: ondisconnect,
-		ErrQueue:       make(chan error, 10),
+		onReadable:     onread,
+		onWritable:     onwrite,
+		onDisconnected: ondisconnect,
 	}
 }
 func (c *Conn) Fd() int {
 	return c.fd
 }
 
-func (c *Conn) WithOnReadable(onread func()) {
-	c.OnReadable = onread
+func (c *Conn) OnReadable() {
+	c.onReadable(c)
 }
 
-func (c *Conn) WithOnWritable(onwrite func()) {
-	c.OnWritable = onwrite
+func (c *Conn) OnWritable() {
+	c.onWritable(c)
 }
-func (c *Conn) WithOnDisconnected(ondisconnect func()) {
-	c.OnDisconnected = ondisconnect
+
+func (c *Conn) OnDisconnected() {
+	c.onDisconnected(c)
+}
+
+func (c *Conn) WithOnReadable(onread func(c *Conn)) {
+	c.onReadable = onread
+}
+
+func (c *Conn) WithOnWritable(onwrite func(c *Conn)) {
+	c.onWritable = onwrite
+}
+func (c *Conn) WithOnDisconnected(ondisconnect func(c *Conn)) {
+	c.onDisconnected = ondisconnect
 }
 func (c *Conn) Read(b []byte) (n int, err error) {
 	return c.conn.Read(b)

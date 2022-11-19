@@ -46,7 +46,7 @@ type Epoll struct {
 func events(e EpollEvent) uint32 {
 	switch e {
 	case EVENT_DISCONNECTED:
-		return syscall.EPOLLERR | syscall.EPOLLRDHUP | syscall.EPOLLHUP
+		return syscall.EPOLLRDHUP
 	case EVENT_READABLE:
 		return syscall.EPOLLIN
 	case EVENT_WRITABLE:
