@@ -1,7 +1,7 @@
 # Go-Epoll!
 A libuv-like epoll wrapper.
 
-Inspired by [Issue #15735](github.com/golang/go/issues/15735)
+Inspired by [Issue #15735](https://github.com/golang/go/issues/15735)
 
 It's a pity that the issue #15735 was denied.
 
