@@ -21,7 +21,7 @@ onread := func (c *goepoll.Conn) {
 }
 c := goepoll.NewConn(tcpConn, onread, nil, nil)
 events, err := goepoll.New() 
-c, err := events.Add(tcpConn, goepoll.EVENT_READABLE)
+c, err := events.Add(c, goepoll.EVENT_READABLE)
 c.Write([]byte("Hello"))
 ```
 
