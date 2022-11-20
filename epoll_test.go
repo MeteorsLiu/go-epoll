@@ -3,6 +3,7 @@ package goepoll
 import (
 	"net"
 	"testing"
+	"time"
 )
 
 func TestGoEpoll(t *testing.T) {
@@ -27,4 +28,5 @@ func TestGoEpoll(t *testing.T) {
 	defer ev.Close()
 	ev.Add(c, EVENT_READABLE)
 	c.Write([]byte("hello world"))
+	<-time.After(time.Minute)
 }
