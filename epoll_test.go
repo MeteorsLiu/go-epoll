@@ -7,8 +7,13 @@ import (
 )
 
 func TestGoEpoll(t *testing.T) {
-	tc, _ := net.Dial("tcp", "tcpbin.com:4242")
+	tc, err := net.Dial("tcp", "tcpbin.com:4242")
+	if err != nil {
+		t.Error(err)
+		return
+	}
 	defer tc.Close()
+
 	onread := func(c *Conn) {
 		buf := make([]byte, 100)
 		n, err := c.Read(buf)
