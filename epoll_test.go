@@ -26,7 +26,10 @@ func TestGoEpoll(t *testing.T) {
 		return
 	}
 	defer ev.Close()
-	ev.Add(c, EVENT_READABLE)
+	if _, err := ev.Add(c, EVENT_READABLE); err != nil {
+		t.Error(err)
+		return
+	}
 	c.Write([]byte("hello world"))
 	<-time.After(time.Minute)
 }
