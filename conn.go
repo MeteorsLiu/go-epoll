@@ -25,7 +25,17 @@ func NewConn(c net.Conn, onread func(c *Conn), onwrite func(c *Conn), ondisconne
 func (c *Conn) Fd() int {
 	return c.fd
 }
+func (c *Conn) HasReader() bool {
+	return c.onReadable != nil
+}
 
+func (c *Conn) HasWriter() bool {
+	return c.onWritable != nil
+}
+
+func (c *Conn) HasDisconnector() bool {
+	return c.onDisconnected != nil
+}
 func (c *Conn) OnReadable() {
 	c.onReadable(c)
 }

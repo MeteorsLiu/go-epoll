@@ -210,15 +210,15 @@ func (e *Epoll) daemon() {
 			if c, ok := e.fds.Load(e.events[i].Fd); ok {
 				cn := c.(*Conn)
 				if e.events[i].Events&(syscall.EPOLLERR|syscall.EPOLLRDHUP|syscall.EPOLLHUP) != 0 {
-					if cn.OnDisconnected != nil {
-						go cn.OnDisconnected()
+					if cn.HasDisconnector() {
+						cn.OnDisconnected()
 					}
 				} else {
-					if e.events[i].Events&syscall.EPOLLIN != 0 && cn.OnReadable != nil {
-						go cn.OnReadable()
+					if e.events[i].Events&syscall.EPOLLIN != 0 && cn.HasReader() {
+						cn.OnReadable()
 					}
-					if e.events[i].Events&syscall.EPOLLOUT != 0 && cn.OnWritable != nil {
-						go cn.OnWritable()
+					if e.events[i].Events&syscall.EPOLLOUT != 0 && cn.HasWriter() {
+						cn.OnWritable()
 					}
 				}
 			}
