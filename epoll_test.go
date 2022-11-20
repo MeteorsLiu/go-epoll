@@ -13,10 +13,10 @@ func TestGoEpoll(t *testing.T) {
 		return
 	}
 	defer tc.Close()
-	t.Log(c.Write([]byte("hello world")))
+	t.Log(tc.Write([]byte("hello world")))
 	go func() {
 		buf := make([]byte, 100)
-		n, err := c.Read(buf)
+		n, err := tc.Read(buf)
 		if err != nil {
 			t.Error(err)
 			return
