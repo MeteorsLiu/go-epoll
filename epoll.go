@@ -48,6 +48,7 @@ func events(e EpollEvent) uint32 {
 	case EVENT_DISCONNECTED:
 		return syscall.EPOLLRDHUP
 	case EVENT_READABLE:
+		log.Println("To Read")
 		return syscall.EPOLLIN
 	case EVENT_WRITABLE:
 		return syscall.EPOLLOUT
