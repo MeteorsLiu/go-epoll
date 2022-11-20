@@ -15,13 +15,7 @@ func TestGoEpoll(t *testing.T) {
 	defer tc.Close()
 
 	onread := func(c *Conn) {
-		buf := make([]byte, 100)
-		n, err := c.Read(buf)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		t.Log(string(buf[:n]))
+		t.Log("onread")
 	}
 
 	c := NewConn(tc, onread, nil, nil)
