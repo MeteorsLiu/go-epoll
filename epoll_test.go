@@ -35,6 +35,6 @@ func TestGoEpoll(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	c.Write([]byte("hello world"))
+	t.Log(c.Write([]byte("hello world")))
 	<-time.After(time.Minute)
 }
