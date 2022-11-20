@@ -215,6 +215,7 @@ func (e *Epoll) daemon() {
 					}
 				} else {
 					if e.events[i].Events&syscall.EPOLLIN != 0 && cn.HasReader() {
+						log.Println("Readable!")
 						cn.OnReadable()
 					}
 					if e.events[i].Events&syscall.EPOLLOUT != 0 && cn.HasWriter() {
