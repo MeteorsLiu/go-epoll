@@ -122,6 +122,7 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_ADD, cfd, &event); err != nil {
 		return nil, ErrEpollAdd
 	}
+	log.Println("cfd: ", cfd)
 	e.fds.Store(cfd, cn)
 	atomic.AddInt64(&e.events_len, 1)
 	return cn, nil
@@ -207,7 +208,6 @@ func (e *Epoll) daemon() {
 			}
 		}
 		for i := 0; i < n; i++ {
-			log.Println(e.events[i].Fd)
 			if c, ok := e.fds.Load(e.events[i].Fd); ok {
 				cn := c.(*Conn)
 				if e.events[i].Events&(syscall.EPOLLERR|syscall.EPOLLRDHUP|syscall.EPOLLHUP) != 0 {
