@@ -105,11 +105,11 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	if cfd == 0 {
 		return nil, ErrConn
 	}
-	if _, ok := e.fds.Load(cfd); ok {
-		return nil, ErrEventsExist
-	}
 	if len(ev) == 0 || len(ev) > 3 {
 		return nil, ErrEvents
+	}
+	if _, ok := e.fds.LoadOrStore(cfd, cn); ok {
+		return nil, ErrEventsExist
 	}
 	evs := events(ev[0])
 	for i := 1; i < len(ev); i++ {
@@ -122,7 +122,6 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_ADD, cfd, &event); err != nil {
 		return nil, ErrEpollAdd
 	}
-	e.fds.Store(cfd, cn)
 	atomic.AddInt64(&e.events_len, 1)
 	e.once.Do(func() {
 		go e.daemon()
