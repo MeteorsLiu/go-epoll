@@ -39,6 +39,7 @@ type Epoll struct {
 	events_len int64
 	epollfd    int
 	fds        sync.Map
+	once       sync.Once
 	isClose    context.Context
 	close      context.CancelFunc
 }
@@ -85,7 +86,6 @@ func New() (*Epoll, error) {
 	}
 	e.epollfd = epfd
 	e.isClose, e.close = context.WithCancel(context.Background())
-	go e.daemon()
 	return e, nil
 }
 func (e *Epoll) Close() {
@@ -115,6 +115,7 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	for i := 1; i < len(ev); i++ {
 		evs |= events(ev[i])
 	}
+	evs |= EPOLLET
 	var event syscall.EpollEvent
 	event.Events = evs
 	event.Fd = int32(cfd)
@@ -123,6 +124,9 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	}
 	e.fds.Store(cfd, cn)
 	atomic.AddInt64(&e.events_len, 1)
+	e.once.Do(func() {
+		go e.daemon()
+	})
 	return cn, nil
 }
 
