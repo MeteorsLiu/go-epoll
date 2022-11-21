@@ -108,6 +108,9 @@ func (e *Epoll) Close() {
 func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	var cfd int32
 	var cn *Conn
+	if len(ev) == 0 || len(ev) > 3 {
+		return nil, ErrEvents
+	}
 	if cc, ok := c.(*Conn); ok {
 		cfd = int32(cc.Fd())
 		cn = cc
@@ -117,9 +120,6 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	}
 	if cfd == 0 {
 		return nil, ErrConn
-	}
-	if len(ev) == 0 || len(ev) > 3 {
-		return nil, ErrEvents
 	}
 	if _, ok := e.fds.LoadOrStore(cfd, cn); ok {
 		return nil, ErrEventsExist
@@ -142,6 +142,9 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	var cfd int32
 	var cn *Conn
+	if len(ev) == 0 || len(ev) > 3 {
+		return nil, ErrEvents
+	}
 	if cc, ok := c.(*Conn); ok {
 		cfd = int32(cc.Fd())
 	} else {
@@ -149,10 +152,6 @@ func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	}
 	if cfd == 0 {
 		return nil, ErrConn
-	}
-
-	if len(ev) == 0 || len(ev) > 3 {
-		return nil, ErrEvents
 	}
 	if cc, ok := e.fds.Load(cfd); !ok {
 		return nil, ErrEventsNonExist
@@ -174,19 +173,19 @@ func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 }
 
 func (e *Epoll) Del(c net.Conn) error {
-	var cfd int
+	var cfd int32
 	if cc, ok := c.(*Conn); ok {
-		cfd = cc.Fd()
+		cfd = int32(cc.Fd())
 	} else {
-		cfd = fd(c)
+		cfd = int32(fd(c))
 	}
 	if cfd == 0 {
 		return ErrConn
 	}
-	if _, ok := e.fds.Load(int32(cfd)); !ok {
+	if _, ok := e.fds.Load(cfd); !ok {
 		return ErrEventsNonExist
 	}
-	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_DEL, cfd, nil); err != nil {
+	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_DEL, int(cfd), nil); err != nil {
 		return ErrEpollDel
 	}
 	e.fds.Delete(cfd)
