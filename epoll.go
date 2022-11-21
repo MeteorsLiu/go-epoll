@@ -109,7 +109,7 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	if len(ev) == 0 || len(ev) > 3 {
 		return nil, ErrEvents
 	}
-	if _, ok := e.fds.LoadOrStore(cfd, cn); ok {
+	if _, ok := e.fds.LoadOrStore(int32(cfd), cn); ok {
 		return nil, ErrEventsExist
 	}
 	evs := events(ev[0])
@@ -135,7 +135,7 @@ func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 		cn = cc
 	} else {
 		cfd = fd(c)
-		if cc, ok := e.fds.Load(cfd); !ok {
+		if cc, ok := e.fds.Load(int32(cfd)); !ok {
 			return nil, ErrEventsNonExist
 		} else {
 			cn = cc.(*Conn)
@@ -208,7 +208,7 @@ func (e *Epoll) daemon() {
 		}
 		for i := 0; i < n; i++ {
 			if c, ok := e.fds.Load(e.events[i].Fd); ok {
-				log.Println("Triggered", e.events[i].Fd)
+
 				cn := c.(*Conn)
 				if e.events[i].Events&(syscall.EPOLLERR|syscall.EPOLLRDHUP|syscall.EPOLLHUP) != 0 {
 					if cn.HasDisconnector() {
