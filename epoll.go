@@ -209,6 +209,7 @@ func (e *Epoll) daemon() {
 			}
 		}
 		for i := 0; i < n; i++ {
+			log.Println("Triggered", e.events[i].Fd)
 			if c, ok := e.fds.Load(e.events[i].Fd); ok {
 				cn := c.(*Conn)
 				if e.events[i].Events&(syscall.EPOLLERR|syscall.EPOLLRDHUP|syscall.EPOLLHUP) != 0 {
