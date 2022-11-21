@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -42,6 +43,7 @@ type Epoll struct {
 	events_len int64
 	epollfd    int
 	fds        sync.Map
+	once       sync.Once
 	wpool      *worker.Pool
 	isClose    context.Context
 	close      context.CancelFunc
@@ -84,23 +86,26 @@ func New(events_num ...int) (*Epoll, error) {
 	if len(events_num) > 0 {
 		size = events_num[0]
 	}
-	e := &Epoll{
-		events:  make([]syscall.EpollEvent, size),
-		maxSize: int64(size),
-		wpool:   worker.NewPool(size, size, size),
-	}
 	epfd, err := syscall.EpollCreate1(syscall.EPOLL_CLOEXEC)
 	if err != nil {
 		return nil, err
 	}
-	e.epollfd = epfd
+	e := &Epoll{
+		events:  make([]syscall.EpollEvent, size),
+		maxSize: int64(size),
+		wpool:   worker.NewPool(size, size, size),
+		epollfd: epfd,
+	}
 	e.isClose, e.close = context.WithCancel(context.Background())
 	go e.daemon()
+	runtime.SetFinalizer(e, e.Close)
 	return e, nil
 }
 func (e *Epoll) Close() {
-	e.close()
-	syscall.Close(e.epollfd)
+	e.once.Do(func() {
+		e.close()
+		syscall.Close(e.epollfd)
+	})
 }
 func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	var cfd int32
