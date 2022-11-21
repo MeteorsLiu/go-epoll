@@ -86,6 +86,7 @@ func New() (*Epoll, error) {
 	}
 	e.epollfd = epfd
 	e.isClose, e.close = context.WithCancel(context.Background())
+	go e.daemon()
 	return e, nil
 }
 func (e *Epoll) Close() {
@@ -123,9 +124,6 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 		return nil, ErrEpollAdd
 	}
 	atomic.AddInt64(&e.events_len, 1)
-	e.once.Do(func() {
-		go e.daemon()
-	})
 	return cn, nil
 }
 
