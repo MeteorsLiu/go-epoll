@@ -22,6 +22,16 @@ func NewConn(c net.Conn, onread func(c *Conn), onwrite func(c *Conn), ondisconne
 		onDisconnected: ondisconnect,
 	}
 }
+
+func NewConnWithFd(c net.Conn, fd int, onread func(c *Conn), onwrite func(c *Conn), ondisconnect func(c *Conn)) *Conn {
+	return &Conn{
+		conn:           c,
+		fd:             fd,
+		onReadable:     onread,
+		onWritable:     onwrite,
+		onDisconnected: ondisconnect,
+	}
+}
 func (c *Conn) Fd() int {
 	return c.fd
 }
