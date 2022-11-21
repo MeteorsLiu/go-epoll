@@ -7,7 +7,7 @@ import (
 )
 
 func TestGoEpoll(t *testing.T) {
-	tc, err := net.Dial("tcp", "tcpbin.com:4242")
+	tc, err := net.Dial("tcp", "127.0.0.1:9998")
 	if err != nil {
 		t.Error(err)
 		return
@@ -24,7 +24,13 @@ func TestGoEpoll(t *testing.T) {
 		t.Log(string(buf[:n]))
 	}()
 	onread := func(c *Conn) {
-		t.Log("onread")
+		buf := make([]byte, 100)
+		n, err := c.Read(buf)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		t.Log(string(buf[:n]))
 	}
 
 	c := NewConn(tc, onread, nil, nil)
