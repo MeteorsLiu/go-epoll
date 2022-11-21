@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/MeteorsLiu/go-epoll/worker"
 )
 
 type EpollEvent int
@@ -36,10 +38,11 @@ const (
 
 type Epoll struct {
 	events     []syscall.EpollEvent
+	maxSize    int64
 	events_len int64
 	epollfd    int
 	fds        sync.Map
-	once       sync.Once
+	wpool      *worker.Pool
 	isClose    context.Context
 	close      context.CancelFunc
 }
@@ -76,9 +79,15 @@ func fd(c net.Conn) int {
 	}
 	return 0
 }
-func New() (*Epoll, error) {
+func New(events_num ...int) (*Epoll, error) {
+	size := DEFAULT_EVENTS_SIZE
+	if len(events_num) > 0 {
+		size = events_num[0]
+	}
 	e := &Epoll{
-		events: make([]syscall.EpollEvent, DEFAULT_EVENTS_SIZE),
+		events:  make([]syscall.EpollEvent, size),
+		maxSize: int64(size),
+		wpool:   worker.NewPool(size, size, size),
 	}
 	epfd, err := syscall.EpollCreate1(syscall.EPOLL_CLOEXEC)
 	if err != nil {
@@ -94,14 +103,14 @@ func (e *Epoll) Close() {
 	syscall.Close(e.epollfd)
 }
 func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
-	var cfd int
+	var cfd int32
 	var cn *Conn
 	if cc, ok := c.(*Conn); ok {
-		cfd = cc.Fd()
+		cfd = int32(cc.Fd())
 		cn = cc
 	} else {
 		cn = NewConn(c, nil, nil, nil)
-		cfd = cc.Fd()
+		cfd = int32(cc.Fd())
 	}
 	if cfd == 0 {
 		return nil, ErrConn
@@ -109,7 +118,7 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	if len(ev) == 0 || len(ev) > 3 {
 		return nil, ErrEvents
 	}
-	if _, ok := e.fds.LoadOrStore(int32(cfd), cn); ok {
+	if _, ok := e.fds.LoadOrStore(cfd, cn); ok {
 		return nil, ErrEventsExist
 	}
 	evs := events(ev[0])
@@ -119,8 +128,8 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	evs |= EPOLLET
 	var event syscall.EpollEvent
 	event.Events = evs
-	event.Fd = int32(cfd)
-	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_ADD, cfd, &event); err != nil {
+	event.Fd = cfd
+	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_ADD, int(cfd), &event); err != nil {
 		return nil, ErrEpollAdd
 	}
 	atomic.AddInt64(&e.events_len, 1)
@@ -128,18 +137,12 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 }
 
 func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
-	var cfd int
+	var cfd int32
 	var cn *Conn
 	if cc, ok := c.(*Conn); ok {
-		cfd = cc.Fd()
-		cn = cc
+		cfd = int32(cc.Fd())
 	} else {
-		cfd = fd(c)
-		if cc, ok := e.fds.Load(int32(cfd)); !ok {
-			return nil, ErrEventsNonExist
-		} else {
-			cn = cc.(*Conn)
-		}
+		cfd = int32(fd(c))
 	}
 	if cfd == 0 {
 		return nil, ErrConn
@@ -148,6 +151,11 @@ func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	if len(ev) == 0 || len(ev) > 3 {
 		return nil, ErrEvents
 	}
+	if cc, ok := e.fds.Load(cfd); !ok {
+		return nil, ErrEventsNonExist
+	} else {
+		cn = cc.(*Conn)
+	}
 	evs := events(ev[0])
 	for i := 1; i < len(ev); i++ {
 		evs |= events(ev[i])
@@ -155,8 +163,8 @@ func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	evs |= EPOLLET
 	var event syscall.EpollEvent
 	event.Events = evs
-	event.Fd = int32(cfd)
-	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_MOD, cfd, &event); err != nil {
+	event.Fd = cfd
+	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_MOD, int(cfd), &event); err != nil {
 		return nil, ErrEpollMod
 	}
 	return cn, nil
@@ -171,6 +179,9 @@ func (e *Epoll) Del(c net.Conn) error {
 	}
 	if cfd == 0 {
 		return ErrConn
+	}
+	if _, ok := e.fds.Load(int32(cfd)); !ok {
+		return ErrEventsNonExist
 	}
 	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_DEL, cfd, nil); err != nil {
 		return ErrEpollDel
@@ -192,7 +203,7 @@ func (e *Epoll) daemon() {
 				continue
 			}
 		}
-		if size > DEFAULT_EVENTS_SIZE {
+		if size > e.maxSize {
 			// resize if the number of connection is more than 1024
 			e.events = make([]syscall.EpollEvent, size)
 		}
@@ -208,18 +219,17 @@ func (e *Epoll) daemon() {
 		}
 		for i := 0; i < n; i++ {
 			if c, ok := e.fds.Load(e.events[i].Fd); ok {
-
 				cn := c.(*Conn)
 				if e.events[i].Events&(syscall.EPOLLERR|syscall.EPOLLRDHUP|syscall.EPOLLHUP) != 0 {
 					if cn.HasDisconnector() {
-						cn.OnDisconnected()
+						e.wpool.Schedule(cn.OnDisconnected)
 					}
 				} else {
 					if e.events[i].Events&syscall.EPOLLIN != 0 && cn.HasReader() {
-						cn.OnReadable()
+						e.wpool.Schedule(cn.OnReadable)
 					}
 					if e.events[i].Events&syscall.EPOLLOUT != 0 && cn.HasWriter() {
-						cn.OnWritable()
+						e.wpool.Schedule(cn.OnWritable)
 					}
 				}
 			}
