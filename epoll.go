@@ -115,14 +115,12 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	for i := 1; i < len(ev); i++ {
 		evs |= events(ev[i])
 	}
-	evs |= EPOLLET
 	var event syscall.EpollEvent
 	event.Events = evs
 	event.Fd = int32(cfd)
 	if err := syscall.EpollCtl(e.epollfd, syscall.EPOLL_CTL_ADD, cfd, &event); err != nil {
 		return nil, ErrEpollAdd
 	}
-	log.Println("cfd: ", cfd)
 	e.fds.Store(cfd, cn)
 	atomic.AddInt64(&e.events_len, 1)
 	return cn, nil
