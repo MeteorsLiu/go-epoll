@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -98,7 +97,6 @@ func New(events_num ...int) (*Epoll, error) {
 	}
 	e.isClose, e.close = context.WithCancel(context.Background())
 	go e.daemon()
-	runtime.SetFinalizer(e, e.Close)
 	return e, nil
 }
 func (e *Epoll) Close() {
