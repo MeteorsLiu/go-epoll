@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/MeteorsLiu/go-epoll/worker"
 )
 
 type EpollEvent int
@@ -19,6 +17,7 @@ const (
 	EVENT_READABLE EpollEvent = iota
 	EVENT_WRITABLE
 	EVENT_DISCONNECTED
+	EVENT_EDGE_TRIGGERED
 )
 
 var (
@@ -43,7 +42,6 @@ type Epoll struct {
 	epollfd    int
 	fds        sync.Map
 	once       sync.Once
-	wpool      *worker.Pool
 	isClose    context.Context
 	close      context.CancelFunc
 }
@@ -56,6 +54,8 @@ func events(e EpollEvent) uint32 {
 		return syscall.EPOLLIN
 	case EVENT_WRITABLE:
 		return syscall.EPOLLOUT
+	case EVENT_EDGE_TRIGGERED:
+		return EPOLLET
 	default:
 		return 0
 	}
@@ -92,7 +92,6 @@ func New(events_num ...int) (*Epoll, error) {
 	e := &Epoll{
 		events:  make([]syscall.EpollEvent, size),
 		maxSize: int64(size),
-		wpool:   worker.NewPool(size, size, size),
 		epollfd: epfd,
 	}
 	e.isClose, e.close = context.WithCancel(context.Background())
@@ -108,7 +107,7 @@ func (e *Epoll) Close() {
 func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	var cfd int32
 	var cn *Conn
-	if len(ev) == 0 || len(ev) > 3 {
+	if len(ev) == 0 || len(ev) > 4 {
 		return nil, ErrEvents
 	}
 	if cc, ok := c.(*Conn); ok {
@@ -128,7 +127,6 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	for i := 1; i < len(ev); i++ {
 		evs |= events(ev[i])
 	}
-	evs |= EPOLLET
 	var event syscall.EpollEvent
 	event.Events = evs
 	event.Fd = cfd
@@ -142,7 +140,7 @@ func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	var cfd int32
 	var cn *Conn
-	if len(ev) == 0 || len(ev) > 3 {
+	if len(ev) == 0 || len(ev) > 4 {
 		return nil, ErrEvents
 	}
 	if cc, ok := c.(*Conn); ok {
@@ -162,7 +160,6 @@ func (e *Epoll) Mod(c net.Conn, ev ...EpollEvent) (*Conn, error) {
 	for i := 1; i < len(ev); i++ {
 		evs |= events(ev[i])
 	}
-	evs |= EPOLLET
 	var event syscall.EpollEvent
 	event.Events = evs
 	event.Fd = cfd
@@ -224,14 +221,14 @@ func (e *Epoll) daemon() {
 				cn := c.(*Conn)
 				if e.events[i].Events&(syscall.EPOLLERR|syscall.EPOLLRDHUP|syscall.EPOLLHUP) != 0 {
 					if cn.CouldBeDisconnected() {
-						e.wpool.Schedule(cn.OnDisconnected)
+						cn.OnDisconnected()
 					}
 				} else {
 					if e.events[i].Events&syscall.EPOLLIN != 0 && cn.CouldBeReadable() {
-						e.wpool.Schedule(cn.OnReadable)
+						cn.OnReadable()
 					}
 					if e.events[i].Events&syscall.EPOLLOUT != 0 && cn.CouldBeWritable() {
-						e.wpool.Schedule(cn.OnWritable)
+						cn.OnWritable()
 					}
 				}
 			}
