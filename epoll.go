@@ -223,14 +223,14 @@ func (e *Epoll) daemon() {
 			if c, ok := e.fds.Load(e.events[i].Fd); ok {
 				cn := c.(*Conn)
 				if e.events[i].Events&(syscall.EPOLLERR|syscall.EPOLLRDHUP|syscall.EPOLLHUP) != 0 {
-					if cn.HasDisconnector() {
+					if cn.CouldBeDisconnected() {
 						e.wpool.Schedule(cn.OnDisconnected)
 					}
 				} else {
-					if e.events[i].Events&syscall.EPOLLIN != 0 && cn.HasReader() {
+					if e.events[i].Events&syscall.EPOLLIN != 0 && cn.CouldBeReadable() {
 						e.wpool.Schedule(cn.OnReadable)
 					}
-					if e.events[i].Events&syscall.EPOLLOUT != 0 && cn.HasWriter() {
+					if e.events[i].Events&syscall.EPOLLOUT != 0 && cn.CouldBeWritable() {
 						e.wpool.Schedule(cn.OnWritable)
 					}
 				}

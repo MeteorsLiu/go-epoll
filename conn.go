@@ -2,14 +2,15 @@ package goepoll
 
 import (
 	"net"
-	"sync"
 	"time"
+
+	"github.com/MeteorsLiu/mutex"
 )
 
 type Conn struct {
 	conn           net.Conn
 	fd             int
-	rwMutex        sync.Mutex
+	rwMutex        mutex.Mutex
 	onReadable     func(c *Conn)
 	onDisconnected func(c *Conn)
 	onWritable     func(c *Conn)
@@ -37,23 +38,24 @@ func NewConnWithFd(c net.Conn, fd int, onread func(c *Conn), onwrite func(c *Con
 func (c *Conn) Fd() int {
 	return c.fd
 }
-func (c *Conn) HasReader() bool {
-	return c.onReadable != nil
+
+// protect each R/W goroutine
+// A goroutine is still reading, don't interrupt
+// It happens that a goroutine try to read many times.
+// However, the event will be triggered twice.
+func (c *Conn) CouldBeReadable() bool {
+	return c.onReadable != nil && c.rwMutex.TryLock()
 }
 
-func (c *Conn) HasWriter() bool {
-	return c.onWritable != nil
+func (c *Conn) CouldBeWritable() bool {
+	return c.onWritable != nil && c.rwMutex.TryLock()
 }
 
-func (c *Conn) HasDisconnector() bool {
-	return c.onDisconnected != nil
+func (c *Conn) CouldBeDisconnected() bool {
+	return c.onDisconnected != nil && c.rwMutex.TryLock()
 }
 func (c *Conn) OnReadable() {
-	// protect each R/W goroutine
-	if !c.rwMutex.TryLock() {
-		// A goroutine is still reading, don't interrupt
-		// It happens that a goroutine try to read many times.
-		// However, the event will be triggered twice.
+	if !c.rwMutex.IsLocked() {
 		return
 	}
 	defer c.rwMutex.Unlock()
@@ -61,7 +63,7 @@ func (c *Conn) OnReadable() {
 }
 
 func (c *Conn) OnWritable() {
-	if !c.rwMutex.TryLock() {
+	if !c.rwMutex.IsLocked() {
 		return
 	}
 	defer c.rwMutex.Unlock()
@@ -69,7 +71,7 @@ func (c *Conn) OnWritable() {
 }
 
 func (c *Conn) OnDisconnected() {
-	if !c.rwMutex.TryLock() {
+	if !c.rwMutex.IsLocked() {
 		return
 	}
 	defer c.rwMutex.Unlock()
