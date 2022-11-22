@@ -2,12 +2,14 @@ package goepoll
 
 import (
 	"net"
+	"sync"
 	"time"
 )
 
 type Conn struct {
 	conn           net.Conn
 	fd             int
+	rwMutex        sync.Mutex
 	onReadable     func(c *Conn)
 	onDisconnected func(c *Conn)
 	onWritable     func(c *Conn)
@@ -47,14 +49,30 @@ func (c *Conn) HasDisconnector() bool {
 	return c.onDisconnected != nil
 }
 func (c *Conn) OnReadable() {
+	// protect each R/W goroutine
+	if !c.rwMutex.TryLock() {
+		// A goroutine is still reading, don't interrupt
+		// It happens that a goroutine try to read many times.
+		// However, the event will be triggered twice.
+		return
+	}
+	defer c.rwMutex.Unlock()
 	c.onReadable(c)
 }
 
 func (c *Conn) OnWritable() {
+	if !c.rwMutex.TryLock() {
+		return
+	}
+	defer c.rwMutex.Unlock()
 	c.onWritable(c)
 }
 
 func (c *Conn) OnDisconnected() {
+	if !c.rwMutex.TryLock() {
+		return
+	}
+	defer c.rwMutex.Unlock()
 	c.onDisconnected(c)
 }
 
