@@ -8,9 +8,13 @@ import (
 )
 
 type Conn struct {
-	conn           net.Conn
-	fd             int
-	rwMutex        mutex.Mutex
+	conn net.Conn
+	fd   int
+	mu   struct {
+		r mutex.Mutex
+		w mutex.Mutex
+		d mutex.Mutex
+	}
 	onReadable     func(c *Conn)
 	onDisconnected func(c *Conn)
 	onWritable     func(c *Conn)
@@ -44,37 +48,46 @@ func (c *Conn) Fd() int {
 // It happens that a goroutine try to read many times.
 // However, the event will be triggered twice.
 func (c *Conn) CouldBeReadable() bool {
-	return c.onReadable != nil && c.rwMutex.TryLock()
+	if c.onReadable != nil {
+		return c.mu.r.TryLock()
+	}
+	return false
 }
 
 func (c *Conn) CouldBeWritable() bool {
-	return c.onWritable != nil && c.rwMutex.TryLock()
+	if c.onWritable != nil {
+		return c.mu.w.TryLock()
+	}
+	return false
 }
 
 func (c *Conn) CouldBeDisconnected() bool {
-	return c.onDisconnected != nil && c.rwMutex.TryLock()
+	if c.onDisconnected != nil {
+		return c.mu.d.TryLock()
+	}
+	return false
 }
 func (c *Conn) OnReadable() {
-	if !c.rwMutex.IsLocked() {
+	if !c.mu.r.IsLocked() {
 		return
 	}
-	defer c.rwMutex.Unlock()
+	defer c.mu.r.Unlock()
 	c.onReadable(c)
 }
 
 func (c *Conn) OnWritable() {
-	if !c.rwMutex.IsLocked() {
+	if !c.mu.w.IsLocked() {
 		return
 	}
-	defer c.rwMutex.Unlock()
+	defer c.mu.w.Unlock()
 	c.onWritable(c)
 }
 
 func (c *Conn) OnDisconnected() {
-	if !c.rwMutex.IsLocked() {
+	if !c.mu.d.IsLocked() {
 		return
 	}
-	defer c.rwMutex.Unlock()
+	defer c.mu.d.Unlock()
 	c.onDisconnected(c)
 }
 
