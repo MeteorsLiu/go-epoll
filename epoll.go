@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 type EpollEvent int
@@ -61,24 +63,14 @@ func events(e EpollEvent) uint32 {
 	}
 }
 
-func fd(c net.Conn) int {
-	if t, ok := c.(*net.TCPConn); ok {
+func fd(c net.Conn) (fd_ int) {
+	switch t := c.(type) {
+	case *net.TCPConn, *net.IPConn, *net.UDPConn, *net.UnixConn:
 		f, _ := t.File()
-		return int(f.Fd())
+		fd_ = int(f.Fd())
+		unix.SetNonblock(fd_, true)
 	}
-	if i, ok := c.(*net.IPConn); ok {
-		f, _ := i.File()
-		return int(f.Fd())
-	}
-	if u, ok := c.(*net.UDPConn); ok {
-		f, _ := u.File()
-		return int(f.Fd())
-	}
-	if n, ok := c.(*net.UnixConn); ok {
-		f, _ := n.File()
-		return int(f.Fd())
-	}
-	return 0
+	return
 }
 func New(events_num ...int) (*Epoll, error) {
 	size := DEFAULT_EVENTS_SIZE
