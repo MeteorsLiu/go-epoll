@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -65,12 +66,21 @@ func events(e EpollEvent) uint32 {
 }
 
 func fd(c net.Conn) (fd_ int) {
+	var f *os.File
 	switch t := c.(type) {
-	case *net.TCPConn, *net.IPConn, *net.UDPConn, *net.UnixConn:
-		f, _ := t.File()
-		fd_ = int(f.Fd())
-		unix.SetNonblock(fd_, true)
+	case *net.TCPConn:
+		f, _ = t.File()
+	case *net.IPConn:
+		f, _ = t.File()
+	case *net.UDPConn:
+		f, _ = t.File()
+	case *net.UnixConn:
+		f, _ = t.File()
+	default:
+		return
 	}
+	fd_ = int(f.Fd())
+	unix.SetNonblock(fd_, true)
 	return
 }
 func New(events_num ...int) (*Epoll, error) {
