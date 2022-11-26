@@ -46,6 +46,7 @@ type Epoll struct {
 	once       sync.Once
 	isClose    context.Context
 	close      context.CancelFunc
+	queue      *Queue
 }
 
 func events(e EpollEvent) uint32 {
@@ -85,6 +86,7 @@ func New(events_num ...int) (*Epoll, error) {
 		events:  make([]syscall.EpollEvent, size),
 		maxSize: int64(size),
 		epollfd: epfd,
+		queue:   NewQueue(),
 	}
 	e.isClose, e.close = context.WithCancel(context.Background())
 	go e.daemon()
@@ -94,6 +96,7 @@ func (e *Epoll) Close() {
 	e.once.Do(func() {
 		e.close()
 		syscall.Close(e.epollfd)
+		e.queue.Close()
 	})
 }
 func (e *Epoll) Add(c net.Conn, ev ...EpollEvent) (*Conn, error) {
@@ -213,14 +216,14 @@ func (e *Epoll) daemon() {
 				cn := c.(*Conn)
 				if e.events[i].Events&(syscall.EPOLLERR|syscall.EPOLLRDHUP|syscall.EPOLLHUP) != 0 {
 					if cn.CouldBeDisconnected() {
-						cn.OnDisconnected()
+						e.queue.DisconnectSchedule(cn.OnDisconnected)
 					}
 				} else {
 					if e.events[i].Events&syscall.EPOLLIN != 0 && cn.CouldBeReadable() {
-						cn.OnReadable()
+						e.queue.ReadSchedule(cn.OnReadable)
 					}
 					if e.events[i].Events&syscall.EPOLLOUT != 0 && cn.CouldBeWritable() {
-						cn.OnWritable()
+						e.queue.WriteSchedule(cn.OnWritable)
 					}
 				}
 			}

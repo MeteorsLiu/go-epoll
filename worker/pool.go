@@ -37,6 +37,10 @@ func NewPool(size, queue, spawn int) *Pool {
 	return p
 }
 
+func (p *Pool) Close() {
+	close(p.work)
+}
+
 // Schedule schedules task to be executed over pool's workers.
 func (p *Pool) Schedule(task func()) {
 	p.schedule(task, nil)
@@ -66,6 +70,9 @@ func (p *Pool) worker(task func()) {
 	task()
 
 	for task := range p.work {
+		if task == nil {
+			return
+		}
 		task()
 	}
 }
