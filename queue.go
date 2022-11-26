@@ -10,11 +10,11 @@ type Queue struct {
 	d *worker.Pool
 }
 
-func NewQueue() *Queue {
+func NewQueue(size int) *Queue {
 	return &Queue{
-		r: worker.NewPool(1, 1024, 1),
-		w: worker.NewPool(1, 1024, 1),
-		d: worker.NewPool(1, 1024, 1),
+		r: worker.NewPool(1, size, 1),
+		w: worker.NewPool(1, size, 1),
+		d: worker.NewPool(1, size, 1),
 	}
 }
 

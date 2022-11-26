@@ -2,6 +2,7 @@ package goepoll
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -96,7 +97,7 @@ func New(events_num ...int) (*Epoll, error) {
 		events:  make([]syscall.EpollEvent, size),
 		maxSize: int64(size),
 		epollfd: epfd,
-		queue:   NewQueue(),
+		queue:   NewQueue(size),
 	}
 	e.isClose, e.close = context.WithCancel(context.Background())
 	go e.daemon()
@@ -212,6 +213,10 @@ func (e *Epoll) daemon() {
 			e.events = make([]syscall.EpollEvent, size)
 		}
 		n, err := syscall.EpollWait(e.epollfd, e.events[:size], -1)
+		// ignore EINTR signal
+		for errors.Is(err, syscall.EINTR) {
+			n, err = syscall.EpollWait(e.epollfd, e.events[:size], -1)
+		}
 		if err != nil {
 			select {
 			case <-e.isClose.Done():
